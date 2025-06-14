@@ -25,7 +25,27 @@ export class YouTubeExtractor {
         throw new Error('Invalid YouTube URL')
       }
 
-      const info = await ytdl.getInfo(url)
+      const options = {
+        requestOptions: {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache'
+          }
+        }
+      }
+
+      const info = await ytdl.getInfo(url, options)
       const videoDetails = info.videoDetails
 
       // Get available formats with better filtering
@@ -81,7 +101,27 @@ export class YouTubeExtractor {
       console.log('Starting YouTube download...')
       
       // Get video info first to check available formats
-      const info = await ytdl.getInfo(url)
+      const options = {
+        requestOptions: {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache'
+          }
+        }
+      }
+
+      const info = await ytdl.getInfo(url, options)
       const formats = info.formats.filter((f: videoFormat) => f.hasVideo && f.hasAudio)
       
       // Map quality labels to format IDs
@@ -121,23 +161,32 @@ export class YouTubeExtractor {
       }
       
       // Configure ytdl options
-      const options = {
+      const optionsDownload = {
         quality: selectedFormatId,
         filter: 'videoandaudio',
         requestOptions: {
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': '*/*',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Referer': 'https://www.youtube.com/'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache'
           }
         }
       }
 
-      console.log('Download options:', options)
+      console.log('Download options:', optionsDownload)
 
       // Create the download stream
-      const stream = ytdl(url, options)
+      const stream = ytdl(url, optionsDownload)
 
       // Handle stream events
       stream.on('info', (info: videoInfo, format: videoFormat) => {
