@@ -1,4 +1,6 @@
-import ytdl from 'ytdl-core'
+const ytdl = require('@distube/ytdl-core')
+import { Readable } from 'stream'
+import { videoFormat, videoInfo } from '@distube/ytdl-core'
 
 export interface YouTubeVideoInfo {
   title: string
@@ -23,12 +25,12 @@ export class YouTubeExtractor {
         throw new Error('Invalid YouTube URL')
       }
 
-      const info = await ytdl.getBasicInfo(url)
+      const info = await ytdl.getInfo(url)
       const videoDetails = info.videoDetails
 
       // Get available formats with better filtering
       const formats = info.formats
-        .map(format => ({
+        .map((format: videoFormat) => ({
           quality: format.qualityLabel || format.quality || 'Audio Only',
           format: format.container || 'mp4',
           url: format.url,
@@ -36,10 +38,10 @@ export class YouTubeExtractor {
           hasVideo: format.hasVideo,
           hasAudio: format.hasAudio
         }))
-        .filter((format, index, self) => 
-          index === self.findIndex(f => f.quality === format.quality && f.hasVideo === format.hasVideo)
+        .filter((format: any, index: number, self: any[]) => 
+          index === self.findIndex((f: any) => f.quality === format.quality && f.hasVideo === format.hasVideo)
         )
-        .sort((a, b) => {
+        .sort((a: any, b: any) => {
           // Prioritize video+audio formats
           if (a.hasVideo && a.hasAudio && !(b.hasVideo && b.hasAudio)) return -1
           if (b.hasVideo && b.hasAudio && !(a.hasVideo && a.hasAudio)) return 1
@@ -76,59 +78,95 @@ export class YouTubeExtractor {
         throw new Error('Invalid YouTube URL')
       }
 
-      const info = await ytdl.getBasicInfo(url)
-      let format
-
-      if (quality.includes('p')) {
-        // Find specific video quality with both video and audio
-        format = info.formats.find(f => 
-          f.qualityLabel === quality && 
-          f.hasVideo && 
-          f.hasAudio &&
-          f.container === 'mp4'
-        )
-
-        // If not found, try to find any format with the requested quality
-        if (!format) {
-          format = info.formats.find(f => 
-            f.qualityLabel === quality && 
-            f.hasVideo
-          )
+      console.log('Starting YouTube download...')
+      
+      // Get video info first to check available formats
+      const info = await ytdl.getInfo(url)
+      const formats = info.formats.filter((f: videoFormat) => f.hasVideo && f.hasAudio)
+      
+      // Map quality labels to format IDs
+      const formatMap = new Map<string, string>()
+      formats.forEach((f: videoFormat) => {
+        if (f.qualityLabel) {
+          formatMap.set(f.qualityLabel, f.itag.toString())
         }
-      } else if (quality === 'Audio Only') {
-        // Find best audio format
-        format = info.formats.find(f => 
-          f.hasAudio && 
-          !f.hasVideo &&
-          f.container === 'mp4'
-        )
+      })
+      
+      // Find the closest available quality
+      const qualityOrder = ['2160p', '1440p', '1080p', '720p', '480p', '360p', '240p', '144p']
+      const requestedQualityIndex = qualityOrder.indexOf(quality)
+      
+      let selectedFormatId = 'highest'
+      if (requestedQualityIndex !== -1) {
+        // Try to find the requested quality or closest available
+        for (let i = requestedQualityIndex; i < qualityOrder.length; i++) {
+          const formatId = formatMap.get(qualityOrder[i])
+          if (formatId) {
+            selectedFormatId = formatId
+            console.log(`Selected quality: ${qualityOrder[i]} (requested: ${quality})`)
+            break
+          }
+        }
+        // If no higher quality found, try lower qualities
+        if (selectedFormatId === 'highest') {
+          for (let i = requestedQualityIndex; i >= 0; i--) {
+            const formatId = formatMap.get(qualityOrder[i])
+            if (formatId) {
+              selectedFormatId = formatId
+              console.log(`Selected quality: ${qualityOrder[i]} (requested: ${quality})`)
+              break
+            }
+          }
+        }
+      }
+      
+      // Configure ytdl options
+      const options = {
+        quality: selectedFormatId,
+        filter: 'videoandaudio',
+        requestOptions: {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Referer': 'https://www.youtube.com/'
+          }
+        }
       }
 
-      if (!format) {
-        // Fallback to best available format
-        format = info.formats.find(f => f.hasVideo && f.hasAudio) || 
-                info.formats.find(f => f.hasVideo) ||
-                info.formats.find(f => f.hasAudio)
-      }
+      console.log('Download options:', options)
 
-      if (!format || !format.url) {
-        throw new Error('No suitable format found for download')
-      }
+      // Create the download stream
+      const stream = ytdl(url, options)
 
-      // Get the direct download URL
-      const downloadUrl = format.url
+      // Handle stream events
+      stream.on('info', (info: videoInfo, format: videoFormat) => {
+        console.log('Download started:', {
+          title: info.videoDetails.title,
+          format: format.qualityLabel,
+          hasVideo: format.hasVideo,
+          hasAudio: format.hasAudio,
+          container: format.container
+        })
+      })
 
-      // Fetch the video using the direct URL
-      const response = await fetch(downloadUrl)
-      if (!response.ok) {
-        throw new Error('Failed to fetch video')
-      }
+      stream.on('progress', (chunkLength: number, downloaded: number, total: number) => {
+        const percent = downloaded / total * 100
+        console.log(`Download progress: ${percent.toFixed(2)}%`)
+      })
 
-      // Convert the response to a readable stream
-      return response.body as unknown as NodeJS.ReadableStream
+      stream.on('error', (error: Error) => {
+        console.error('Stream error:', error)
+        throw error
+      })
+
+      return stream
 
     } catch (error) {
       console.error('YouTube download error:', error)
+      if (error instanceof Error) {
+        throw new Error(`Failed to download YouTube video: ${error.message}`)
+      }
       throw new Error('Failed to download YouTube video. Please try again.')
     }
   }
