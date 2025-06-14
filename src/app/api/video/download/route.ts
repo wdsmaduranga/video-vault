@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { VideoExtractor } from '@/lib/video-extractor'
-import { Readable } from 'stream'
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,8 +31,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`Starting download for ${platform} video...`)
-    
     // Download the video
     const videoStream = await VideoExtractor.downloadVideo(url, quality)
     
@@ -44,7 +41,6 @@ export async function POST(request: NextRequest) {
 
     // If it's a Buffer, convert to stream
     if (Buffer.isBuffer(videoStream)) {
-      console.log('Processing buffer stream...')
       const headers = new Headers()
       headers.set('Content-Type', `video/${format}`)
       headers.set('Content-Disposition', `attachment; filename="${filename}"`)
@@ -56,29 +52,35 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // If it's a ReadableStream (YouTube), convert to Buffer
+    // If it's a ReadableStream (YouTube), pipe it
     if (videoStream && typeof videoStream.pipe === 'function') {
-      console.log('Processing Node.js ReadableStream...')
-      
-      // Convert stream to buffer
-      const chunks: Buffer[] = []
-      for await (const chunk of videoStream as Readable) {
-        chunks.push(Buffer.from(chunk))
-      }
-      const buffer = Buffer.concat(chunks)
-      
       const headers = new Headers()
       headers.set('Content-Type', `video/${format}`)
       headers.set('Content-Disposition', `attachment; filename="${filename}"`)
-      headers.set('Content-Length', buffer.length.toString())
 
-      return new NextResponse(new Uint8Array(buffer), {
+      // Convert Node.js ReadableStream to Web ReadableStream
+      const webStream = new ReadableStream({
+        start(controller) {
+          videoStream.on('data', (chunk: Buffer) => {
+            controller.enqueue(new Uint8Array(chunk))
+          })
+          
+          videoStream.on('end', () => {
+            controller.close()
+          })
+          
+          videoStream.on('error', (error: Error) => {
+            controller.error(error)
+          })
+        }
+      })
+
+      return new NextResponse(webStream, {
         status: 200,
         headers
       })
     }
 
-    console.error('Invalid video stream format:', typeof videoStream)
     throw new Error('Invalid video stream format')
 
   } catch (error) {
