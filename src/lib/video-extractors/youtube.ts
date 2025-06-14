@@ -57,7 +57,7 @@ export class YouTubeExtractor {
           hasVideo: format.hasVideo,
           hasAudio: format.hasAudio
         }))
-        .filter((format, index: number, self: any[]) => 
+        .filter((format: { quality: string; hasVideo: boolean }, index: number, self: any[]) => 
           index === self.findIndex((f: any) => f.quality === format.quality && f.hasVideo === format.hasVideo)
         )
         .sort((a: any, b: any) => {
