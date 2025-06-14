@@ -23,7 +23,6 @@ import {
 } from "lucide-react"
 import { SupportedPlatforms } from "@/components/supported-platforms"
 import { videoAPI, type VideoInfo, type DownloadRequest } from "@/lib/video-api"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 export function VideoDownloader() {
   const [url, setUrl] = useState("")
@@ -31,9 +30,7 @@ export function VideoDownloader() {
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null)
   const [error, setError] = useState("")
   const [downloadingQuality, setDownloadingQuality] = useState<string | null>(null)
-  const [downloadProgress, setDownloadProgress] = useState(0)
-  const [isDownloading, setIsDownloading] = useState(false)
-  const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [downloadProgress, setDownloadProgress] = useState<{ [key: string]: number }>({})
 
   const detectPlatform = (url: string): string => {
     if (url.includes("youtube.com") || url.includes("youtu.be")) return "YouTube"
@@ -83,12 +80,22 @@ export function VideoDownloader() {
 
   const handleDownload = async (quality: string) => {
     if (!videoInfo) return
-
-    setIsDownloading(true)
-    setDownloadProgress(0)
-    setDownloadError(null)
+    
+    setDownloadingQuality(quality)
+    setDownloadProgress(prev => ({ ...prev, [quality]: 0 }))
 
     try {
+      // Simulate progress for user feedback
+      const progressInterval = setInterval(() => {
+        setDownloadProgress(prev => {
+          const current = prev[quality] || 0
+          if (current < 90) {
+            return { ...prev, [quality]: current + 10 }
+          }
+          return prev
+        })
+      }, 500)
+
       const response = await fetch('/api/video/download', {
         method: 'POST',
         headers: {
@@ -97,65 +104,51 @@ export function VideoDownloader() {
         body: JSON.stringify({
           url: videoInfo.originalUrl,
           quality,
+          format: 'mp4'
         }),
       })
 
+      clearInterval(progressInterval)
+
       if (!response.ok) {
-        throw new Error('Download failed')
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Download failed')
       }
 
-      // Handle SSE
-      const reader = response.body?.getReader()
-      const decoder = new TextDecoder()
+      // Complete progress
+      setDownloadProgress(prev => ({ ...prev, [quality]: 100 }))
 
-      if (!reader) {
-        throw new Error('Failed to start download')
-      }
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        const chunk = decoder.decode(value)
-        const lines = chunk.split('\n')
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = JSON.parse(line.slice(6))
-            
-            if (data.type === 'error') {
-              throw new Error(data.error)
-            }
-            
-            if (data.progress !== undefined) {
-              setDownloadProgress(data.progress)
-            }
-            
-            if (data.type === 'complete') {
-              // Convert base64 to blob and download
-              const binaryString = atob(data.buffer)
-              const bytes = new Uint8Array(binaryString.length)
-              for (let i = 0; i < binaryString.length; i++) {
-                bytes[i] = binaryString.charCodeAt(i)
-              }
-              const blob = new Blob([bytes], { type: data.contentType })
-              const url = URL.createObjectURL(blob)
-              const a = document.createElement('a')
-              a.href = url
-              a.download = data.filename
-              document.body.appendChild(a)
-              a.click()
-              document.body.removeChild(a)
-              URL.revokeObjectURL(url)
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Download error:', error)
-      setDownloadError(error instanceof Error ? error.message : 'Download failed')
+      // Get the video blob
+      const blob = await response.blob()
+      
+      // Create download link
+      const downloadUrl = URL.createObjectURL(blob)
+      const fileName = `${videoInfo.title.slice(0, 50).replace(/[^a-zA-Z0-9]/g, '_')}_${quality.replace(/[^a-zA-Z0-9]/g, '_')}.mp4`
+      
+      // Trigger download
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+      // Clean up
+      setTimeout(() => {
+        URL.revokeObjectURL(downloadUrl)
+      }, 1000)
+      
+      // Show success message
+      setTimeout(() => {
+        alert(`✅ Download completed successfully!\n\nFile: ${fileName}\n\nThe video has been saved to your downloads folder.`)
+      }, 500)
+      
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Download failed'
+      alert(`❌ Download failed: ${errorMessage}`)
     } finally {
-      setIsDownloading(false)
+      setDownloadingQuality(null)
+      setDownloadProgress(prev => ({ ...prev, [quality]: 0 }))
     }
   }
 
@@ -353,11 +346,11 @@ export function VideoDownloader() {
                         </Button>
                         
                         {/* Progress Bar */}
-                        {downloadProgress > 0 && downloadProgress < 100 && (
+                        {downloadProgress[quality] > 0 && downloadProgress[quality] < 100 && (
                           <div className="space-y-1">
-                            <Progress value={downloadProgress} className="h-2" />
+                            <Progress value={downloadProgress[quality]} className="h-2" />
                             <p className="text-xs text-gray-500 text-center">
-                              {downloadProgress}% complete
+                              {downloadProgress[quality]}% complete
                             </p>
                           </div>
                         )}
@@ -379,31 +372,6 @@ export function VideoDownloader() {
 
       {/* Supported Platforms */}
       <SupportedPlatforms />
-
-      <Dialog open={isDownloading || downloadError !== null} onOpenChange={(open) => {
-        if (!open) {
-          setIsDownloading(false)
-          setDownloadError(null)
-        }
-      }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {downloadError ? 'Download Error' : 'Downloading Video'}
-            </DialogTitle>
-          </DialogHeader>
-          {downloadError ? (
-            <div className="text-red-500">{downloadError}</div>
-          ) : (
-            <div className="space-y-4">
-              <Progress value={downloadProgress} />
-              <div className="text-center text-sm text-gray-500">
-                {downloadProgress}% complete
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
