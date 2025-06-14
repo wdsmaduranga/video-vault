@@ -71,20 +71,19 @@ export async function POST(request: NextRequest) {
           
           // Convert stream to buffer with progress
           const chunks: Buffer[] = []
-          const stream = videoStream as Readable & { headers?: { [key: string]: string } }
-          for await (const chunk of stream) {
+          for await (const chunk of videoStream as Readable) {
             const buffer = Buffer.from(chunk)
             chunks.push(buffer)
             downloaded += buffer.length
             
-            // Try to get total size from content-length header
-            if (!total && stream.headers?.['content-length']) {
-              total = parseInt(stream.headers['content-length'])
+            // Estimate total size based on first chunk
+            if (!total && downloaded > 0) {
+              total = downloaded * 10 // Rough estimate
             }
             
             // Send progress update
             if (total) {
-              const progress = Math.round((downloaded / total) * 100)
+              const progress = Math.min(Math.round((downloaded / total) * 100), 99)
               await writer.write(encoder.encode(`data: ${JSON.stringify({ progress })}\n\n`))
             }
           }

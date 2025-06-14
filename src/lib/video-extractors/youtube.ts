@@ -25,26 +25,7 @@ export class YouTubeExtractor {
         throw new Error('Invalid YouTube URL')
       }
 
-      const options = {
-        requestOptions: {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'DNT': '1',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
-            'Sec-Fetch-User': '?1',
-            'Cache-Control': 'max-age=0'
-          }
-        }
-      }
-
-      const info = await ytdl.getInfo(url, options)
+      const info = await ytdl.getInfo(url)
       const videoDetails = info.videoDetails
 
       // Get available formats with better filtering
@@ -57,7 +38,7 @@ export class YouTubeExtractor {
           hasVideo: format.hasVideo,
           hasAudio: format.hasAudio
         }))
-        .filter((format: { quality: string; hasVideo: boolean }, index: number, self: any[]) => 
+        .filter((format: any, index: number, self: any[]) => 
           index === self.findIndex((f: any) => f.quality === format.quality && f.hasVideo === format.hasVideo)
         )
         .sort((a: any, b: any) => {
@@ -99,24 +80,56 @@ export class YouTubeExtractor {
 
       console.log('Starting YouTube download...')
       
+      // Get video info first to check available formats
+      const info = await ytdl.getInfo(url)
+      const formats = info.formats.filter((f: videoFormat) => f.hasVideo && f.hasAudio)
+      
+      // Map quality labels to format IDs
+      const formatMap = new Map<string, string>()
+      formats.forEach((f: videoFormat) => {
+        if (f.qualityLabel) {
+          formatMap.set(f.qualityLabel, f.itag.toString())
+        }
+      })
+      
+      // Find the closest available quality
+      const qualityOrder = ['2160p', '1440p', '1080p', '720p', '480p', '360p', '240p', '144p']
+      const requestedQualityIndex = qualityOrder.indexOf(quality)
+      
+      let selectedFormatId = 'highest'
+      if (requestedQualityIndex !== -1) {
+        // Try to find the requested quality or closest available
+        for (let i = requestedQualityIndex; i < qualityOrder.length; i++) {
+          const formatId = formatMap.get(qualityOrder[i])
+          if (formatId) {
+            selectedFormatId = formatId
+            console.log(`Selected quality: ${qualityOrder[i]} (requested: ${quality})`)
+            break
+          }
+        }
+        // If no higher quality found, try lower qualities
+        if (selectedFormatId === 'highest') {
+          for (let i = requestedQualityIndex; i >= 0; i--) {
+            const formatId = formatMap.get(qualityOrder[i])
+            if (formatId) {
+              selectedFormatId = formatId
+              console.log(`Selected quality: ${qualityOrder[i]} (requested: ${quality})`)
+              break
+            }
+          }
+        }
+      }
+      
       // Configure ytdl options
       const options = {
-        quality: quality.includes('p') ? quality : 'highest',
-        filter: quality.includes('p') ? 'videoandaudio' : 'audioonly',
+        quality: selectedFormatId,
+        filter: 'videoandaudio',
         requestOptions: {
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'DNT': '1',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
-            'Sec-Fetch-User': '?1',
-            'Cache-Control': 'max-age=0'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Referer': 'https://www.youtube.com/'
           }
         }
       }
