@@ -220,7 +220,7 @@ export class YouTubeExtractor {
       }
 
       // First, get video info to check size
-      const { stdout: infoJson } = await execAsync(`yt-dlp -j "${url}"`)
+      const { stdout: infoJson } = await execAsync(`yt-dlp -j "${url}"`, { maxBuffer: 50 * 1024 * 1024 })
       const videoInfo = JSON.parse(infoJson)
       const filesize = videoInfo.filesize || 0
 
