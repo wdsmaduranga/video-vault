@@ -50,7 +50,7 @@ export class InstagramExtractor {
       // Alternative: Extract from window._sharedData
       if (!videoData) {
         const scriptContent = $('script').filter((_, element) => {
-          return $(element).html()?.includes('window._sharedData') ?? false
+          return $(element).html()?.includes('window._sharedData')
         }).html()
 
         if (scriptContent) {

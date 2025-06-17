@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       headers.set('Content-Disposition', `attachment; filename="${filename}"`)
       headers.set('Content-Length', videoStream.length.toString())
 
-      return new NextResponse(new Uint8Array(videoStream), {
+      return new NextResponse(videoStream, {
         status: 200,
         headers
       })

@@ -160,6 +160,29 @@ export function VideoDownloader() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
+      {/* Production Status */}
+      <Card className="shadow-xl border-0 bg-gradient-to-r from-green-50 to-emerald-50">
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
+                <Zap className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-lg text-green-800">
+                  🚀 Production Mode Active
+                </h3>
+                <p className="text-sm text-green-600">
+                  Real video downloads from YouTube, TikTok, Instagram, Twitter/X, and Facebook
+                </p>
+              </div>
+            </div>
+            <Badge className="bg-green-100 text-green-800 font-medium">
+              LIVE
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* URL Input Form */}
       <Card className="shadow-xl border-0 bg-white/60 backdrop-blur-sm">
@@ -335,7 +358,11 @@ export function VideoDownloader() {
                     ))}
                   </div>
                   
-             
+                  <div className="mt-4 p-3 rounded-lg border bg-green-50 border-green-200">
+                    <p className="text-xs text-center text-green-700">
+                      🎉 <strong>Production Ready:</strong> Real video downloads with full quality options from all supported platforms!
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
